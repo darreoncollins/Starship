@@ -62,6 +62,7 @@ extern "C" {
 void* GameEngine_Malloc(size_t size);
 bool GameEngine_HasVersion(SF64Version ver);
 void GameEngine_ProcessGfxCommands(Gfx* commands);
+int32_t GameEngine_GetSecondaryFramebuffer(void);
 float GameEngine_GetAspectRatio();
 uint8_t GameEngine_OTRSigCheck(const char* imgData);
 uint32_t OTRGetCurrentWidth(void);

@@ -128,6 +128,7 @@ GameEngine::GameEngine() {
     this->context->InitConfiguration();    // without this line InitConsoleVariables fails at Config::Reload()
     this->context->InitConsoleVariables(); // without this line the controldeck constructor failes in
                                            // ShipDeviceIndexMappingManager::UpdateControllerNamesFromConfig()
+    CVarRegisterInteger("gDualScreen.Enabled", 0);
 
     auto defaultMappings = std::make_shared<Ship::ControllerDefaultMappings>(
         // KeyboardKeyToButtonMappings - use built-in LUS defaults
@@ -531,6 +532,11 @@ void GameEngine::ProcessGfxCommands(Gfx* commands) {
 
     last_fps = fps;
     last_update_rate = gVIsPerFrame;
+}
+
+extern "C" int32_t GameEngine_GetSecondaryFramebuffer() {
+    auto window = std::dynamic_pointer_cast<Fast::Fast3dWindow>(Ship::Context::GetInstance()->GetWindow());
+    return window != nullptr ? window->GetSecondaryFramebuffer() : 0;
 }
 
 uint32_t GameEngine::GetInterpolationFPS() {
