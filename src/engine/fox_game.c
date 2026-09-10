@@ -23,6 +23,50 @@ f32 gFovY;
 f32 gProjectNear;
 f32 gProjectFar;
 
+void Map_Draw(void);
+static Gfx sDualScreenHudDL[0x8000];
+
+static bool Game_DualScreenEnabled(void) {
+    return GameEngine_GetSecondaryFramebuffer() != 0;
+}
+
+static void Game_DrawSecondaryHud(void) {
+    if (gDrawMode == DRAW_MAP) {
+        Map_Draw();
+        return;
+    }
+
+    if ((gDrawMode == DRAW_PLAY) || (gDrawMode == DRAW_ENDING)) {
+        Radio_Draw();
+        if (gShowHud) {
+            HUD_Draw();
+            CALL_CANCELLABLE_EVENT(DrawEdgeArrowsHUDEvent) {
+                HUD_EdgeArrows_Update();
+            }
+        }
+        CALL_CANCELLABLE_EVENT(DrawBossHealthHUDEvent) {
+            HUD_DrawBossHealth();
+        }
+    }
+
+    HUD_DrawStatusScreens();
+    AllRange_DrawCountdown();
+}
+
+static void Game_BuildSecondaryHud(void) {
+    Gfx* savedMasterDisp;
+
+    if (!Game_DualScreenEnabled()) {
+        return;
+    }
+
+    savedMasterDisp = gMasterDisp;
+    gMasterDisp = sDualScreenHudDL;
+    Game_DrawSecondaryHud();
+    gSPEndDisplayList(gMasterDisp++);
+    gMasterDisp = savedMasterDisp;
+}
+
 bool gShowReticles[4] = { true, true, true, true };
 bool D_game_800D2870 = false;
 s32 sVsCameraULx[] = { 0, SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2 };
@@ -283,7 +327,9 @@ void Game_Draw(s32 playerNum) {
             break;
         case DRAW_MAP:
             Background_DrawStarfield();
-            OvlMenu_CallFunction(OVLCALL_MAP_DRAW, NULL);
+            if (!Game_DualScreenEnabled()) {
+                OvlMenu_CallFunction(OVLCALL_MAP_DRAW, NULL);
+            }
             break;
         case DRAW_PLAY:
             gPlayerNum = playerNum;
@@ -518,6 +564,8 @@ void Game_Update(void) {
 
         Game_Draw(0);
 
+        Game_BuildSecondaryHud();
+
         if (gCamCount == 2) {
             Game_InitViewport(&gMasterDisp, gCamCount, 1);
             Game_Draw(1);
@@ -565,7 +613,7 @@ void Game_Update(void) {
                                    OTRGetRectDimensionFromRightEdge(SCREEN_WIDTH - 1), SCREEN_HEIGHT - 1,
                                    gPlayerGlareReds[0], gPlayerGlareGreens[0], gPlayerGlareBlues[0],
                                    gPlayerGlareAlphas[0]);
-            if ((gDrawMode == DRAW_PLAY) || (gDrawMode == DRAW_ENDING)) {
+            if (!Game_DualScreenEnabled() && ((gDrawMode == DRAW_PLAY) || (gDrawMode == DRAW_ENDING))) {
                 Radio_Draw();
                 if (gShowHud) {
                     HUD_Draw();
@@ -594,11 +642,26 @@ void Game_Update(void) {
         }
 
         Background_dummy_80040CDC();
-        HUD_DrawStatusScreens();
-        AllRange_DrawCountdown();
+        if (!Game_DualScreenEnabled()) {
+            HUD_DrawStatusScreens();
+            AllRange_DrawCountdown();
+        }
 
         if ((gGameState == GSTATE_PLAY) && gVersusMode) {
             Versus_Draw();
+        }
+
+        if (Game_DualScreenEnabled()) {
+            gSPDisplayList(gMasterDisp++, gRcpInitDL);
+            gsSPSetFB(gMasterDisp++, GameEngine_GetSecondaryFramebuffer());
+            gDPSetScissor(gMasterDisp++, G_SC_NON_INTERLACE, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+            gDPSetCycleType(gMasterDisp++, G_CYC_FILL);
+            gDPSetFillColor(gMasterDisp++, FILL_COLOR(gBgColor | 1));
+            gDPFillRectangle(gMasterDisp++, 0, 0, SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1);
+            Lib_InitPerspective(&gMasterDisp);
+            Game_InitViewport(&gMasterDisp, 1, 0);
+            gSPDisplayList(gMasterDisp++, sDualScreenHudDL);
+            gsSPResetFB(gMasterDisp++);
         }
 
         Wipe_Draw(WIPE_CIRCULAR, gCircleWipeFrame);
